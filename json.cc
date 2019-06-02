@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <iostream>
 #include <map>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -16,6 +17,10 @@ class json {
     type_ = rhs.type_;
     if (rhs.type_ == kInteger) {
       i_ = rhs.i_;
+    } else if (rhs.type_ == kTrue) {
+      b_ = rhs.b_;
+    } else if (rhs.type_ == kFalse) {
+      b_ = rhs.b_;
     } else if (rhs.type_ == kDouble) {
       d_ = rhs.d_;
     } else if (rhs.type_ == kString) {
@@ -32,6 +37,13 @@ class json {
       return i_;
     }
     return 0;
+  }
+
+  operator bool() {
+    if (type_ == kTrue || type_ == kFalse) {
+      return b_;
+    }
+    return false;
   }
 
   operator double() {
@@ -108,7 +120,34 @@ class json {
     return *this;
   }
 
-  json &operator=(const std::string &v) {
+  json &operator=(bool v) {
+    if (key_ != nullptr) {
+      type_ = kObject;
+      json j;
+      j = v;
+      o_[key_] = j;
+      key_ = nullptr;
+    } else if (idx_ != -1) {
+      type_ = kList;
+      json j;
+      j = v;
+      if (l_.size() <= idx_) {
+        l_.resize(idx_ + 1);
+      }
+      l_[idx_] = j;
+      idx_ = -1;
+    } else {
+      if (v) {
+        type_ = kTrue;
+      } else {
+        type_ = kFalse;
+      }
+      b_ = v;
+    }
+    return *this;
+  }
+
+  json &operator=(const char *v) {
     if (key_ != nullptr) {
       type_ = kObject;
       json j;
@@ -151,6 +190,8 @@ class json {
       type_ = v.type_;
       if (v.type_ == kInteger) {
         i_ = v.i_;
+      } else if (v.type_ == kTrue || v.type_ == kFalse) {
+        b_ = v.b_;
       } else if (v.type_ == kDouble) {
         d_ = v.d_;
       } else if (v.type_ == kString) {
@@ -165,42 +206,65 @@ class json {
   }
 
   void debug() {
+    std::string s = dump(0);
+    std::cout << s;
+  }
+
+  std::string dump(int indent = 0) {
+    std::stringstream buf;
     switch (type_) {
       case kNull:
-        printf("null");
-        break;
+        return "null";
       case kInteger:
-        printf("%d", i_);
-        break;
+        buf << i_;
+        return buf.str();
+      case kTrue:
+        return "true";
+      case kFalse:
+        return "false";
       case kDouble:
-        printf("%lf", d_);
-        break;
+        buf << d_;
+        if (buf.str().find('.') == std::string::npos) {
+          buf << ".0";
+        }
+        return buf.str();
       case kString:
-        printf("%s", s_.c_str());
-        break;
+        return "\"" + s_ + "\"";
       case kObject:
-        printf("{");
+        buf << "{";
+        if (indent != 0) buf << "\n";
         for (o_iter it = o_.begin(), it1 = it; it != o_.end(); ++it) {
           ++it1;
-          printf("%s:", it->first.c_str());
-          it->second.debug();
+          if (indent != 0) buf << std::string(indent, ' ');
+          buf << "\"" + it->first + "\":";
+          if (indent != 0) {
+            buf << it->second.dump(indent + 1);
+          } else {
+            buf << it->second.dump();
+          }
           if (it1 != o_.end()) {
-            printf(",");
+            buf << ",";
+            if (indent != 0) buf << "\n";
           }
         }
-        printf("}\n");
-        break;
+        if (indent != 0) buf << "\n" << std::string(indent - 1, ' ');
+        buf << "}";
+        return buf.str();
       case kList:
-        printf("[");
+        buf << "[";
         for (l_iter it = l_.begin(), it1 = it; it != l_.end(); ++it) {
           ++it1;
-          it->debug();
+          if (indent != 0) {
+            buf << it->dump(indent + 1);
+          } else {
+            buf << it->dump();
+          }
           if (it1 != l_.end()) {
-            printf(",");
+            buf << ",";
           }
         }
-        printf("]\n");
-        break;
+        buf << "]";
+        return buf.str();
       default:
         printf("unknown type: %d\n", type_);
     }
@@ -222,6 +286,7 @@ class json {
   Type type_;
   const char *key_;
   int idx_;
+  bool b_;
   int i_;
   double d_;
   std::string s_;
@@ -236,21 +301,27 @@ typedef reed::json json;
 int main(int argc, char *argv[]) {
   json j, j1;
 
-  /*
+  j1[3] = false;
   j1[0] = 1;
-  j1[10] = 2.2;
-  j1[20] = "ccc";
+  j1[5] = 2.2;
+  j1[4] = "ccc";
 
   j["a"] = 1;
   j["b"] = 2.2;
   j["c"] = "ccc";
+  j["t"] = true;
+  j["x"] = 4.0;
 
-  j["k"] = j1;
+  j["j"] = j;
+
   j1[11] = j;
+  j1[20] = j1;
+  j["k"] = j1;
 
   j.debug();
-  j1.debug();
-  */
+  //  j1.debug();
+
+  return 0;
 
   j1["in"] = "_internal_";
   j1["out"] = 99.8877;
